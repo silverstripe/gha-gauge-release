@@ -107,8 +107,9 @@ runs:
           fi
         fi
 
-        # Check if there is anything relevant to release using GitHub API
-        # The API results include all merged pull-requests, not commits
+        # Check if there is anything relevant commits to release using GitHub API using the tripe-dot compoare endpoint
+        # which will show things that are in the next-patch branch that are not in the latest tag
+        # Note: unlike CLI, the API endpoint results include all merged pull-requests, not commits
         # Pull-requests prefixed with MNT or DOC will not be considered relevant for releasing
         if [[ $DO_RELEASE == "1" ]]; then
           # Check on github release notes api if there's anything worth releasing
@@ -139,5 +140,52 @@ runs:
             DO_RELEASE=0
           fi
         fi
+
+        # Check again, this time using the double-dot syntax which will show the raw diff between the latest tag
+        # and the next-patch branch
+        # This isn't available via the github api, so screen scrape this instead. Screen scraping isn't
+        # great because it's brittle, however if this fails then all that happens is we tag a release that
+        # has no actual changes, which isn't the end of the world.
+        # Here we are only detecting if there are no actual changes to release, which can happen in a couple of scenarios:
+        # a) A change is made and tagged, and then backported to an older branch and then merged-up
+        # b) A change made in a previous major that we don't want to keep in current major, so
+        #    it's reverted during the merge-up
+        if [[ $DO_RELEASE == "1" ]]; then
+          RESP_CODE=$(curl -w %{http_code} -s -o __compare.html \
+          -X GET https://github.com/$GITHUB_REPOSITORY/compare/$LATEST_TAG..$GITHUB_SHA
+          )
+          if [[ $RESP_CODE != "200" ]]; then
+            echo "Unable to fetch compare html - HTTP response code was $RESP_CODE"
+            exit 1
+          fi
+          PARSED=$(php -r '
+            $s = file_get_contents("__compare.html");
+            $s = strip_tags($s);
+            $s = str_replace("[\r\n]", " ", $s);
+            $s = preg_replace("# {2,}#", " ", $s);
+            echo $s;
+          ')
+          # `|| true` needs to be suffixed otherwise an error code of 1 will be omitted when there is no grep match
+          IDENTICAL=$(echo $PARSED | grep "$LATEST_TAG and $GITHUB_SHA are identical") || true
+          if [[ $IDENTICAL != "" ]]; then
+            echo "Not patch releasing because there are no actual changes to release"
+            DO_RELEASE=0
+          fi
+        fi
+
         echo "do_release output is $DO_RELEASE"
         echo "do_release=$DO_RELEASE" >> $GITHUB_OUTPUT
+
+    - name: Delete temporary files
+      if: always()
+      shell: bash
+      run: |
+        if [[ -f __response.json ]]; then
+          rm __response.json
+        fi
+        if [[ -f __commits.json ]]; then
+          rm __commits.json
+        fi
+        if [[ -f __compare.html ]]; then
+          rm __compare.html
+        fi

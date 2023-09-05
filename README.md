@@ -1,4 +1,4 @@
-# GitHub Actions - Gauage release
+# GitHub Actions - Gauge release
 
 GitHub action to gauge whether to do a patch release
 
