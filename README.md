@@ -4,6 +4,8 @@ GitHub action to gauge whether to do a patch release
 
 Action is designed to only be used as part of [gha-ci](https://github.com/silverstripe/gha-ci) and [gha-action-ci](https://github.com/silverstripe/gha-action-ci)
 
+GitHub job permissions required: `contents: read`
+
 ## Inputs
 
 ### Latest local sha
