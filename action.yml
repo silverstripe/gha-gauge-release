@@ -130,6 +130,10 @@ runs:
           # Parse comits one line at a time
           HAS_THINGS_TO_RELEASE=0
           while IFS="" read -r line || [[ -n $line ]]; do
+            # Remove any leading bullet points
+            line="${line#\* }"
+            line="${line#\-}"
+            line="${line# }"
             if ! [[ "$line" =~ ^(Merge|MNT|DOC) ]] && ! [[ $line =~ ^[[:space:]]*$ ]]; then
               HAS_THINGS_TO_RELEASE=1
               break
